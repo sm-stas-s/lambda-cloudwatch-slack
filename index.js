@@ -28,6 +28,15 @@ function loadAwsData() {
  */
 function extendNotification(slackMessage, message) {
   const MessageDimension = message.Dimensions;
+
+  slackMessage.attachments.fields.push({
+    title: 'Instance',
+    value: JSON.stringify(MessageDimension),
+    short: false
+  });
+
+  return slackMessage;
+
   if (Array.isArray(MessageDimension)) {
     const instanceIds = MessageDimension.reduce((acc, messageDimension) => {
       if (messageDimension.value) {
@@ -350,15 +359,6 @@ var handleCloudWatch = function(event, context) {
         "color": color,
         "fields": [
           { "title": "Alarm Name", "value": alarmName, "short": true },
-
-
-          {
-            title: 'Instance',
-            value: `InstanceId: A, PublicIpAddress: BBB, InstanceName: C`,
-            short: false
-          },
-
-
           { "title": "Alarm Description", "value": alarmDescription, "short": false},
           {
             "title": "Trigger",
