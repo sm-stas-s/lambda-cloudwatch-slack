@@ -45,6 +45,12 @@ function extendNotification(slackMessage, message) {
           short: false
         });
       });
+    } else {
+      slackMessage.attachments.fields.push({
+        title: 'Instance',
+        value: `Unclassified Instance. AwsDataReservations: ${awsDataReservations.length}`,
+        short: false
+      });
     }
   }
   return slackMessage;
@@ -53,7 +59,7 @@ function extendNotification(slackMessage, message) {
 try {
   loadAwsData();
 } catch (e) {
-  console.warn('Error loading of AWS data');
+  console.log('Error loading of AWS data');
 }
 
 /**
@@ -343,7 +349,7 @@ var handleCloudWatch = function(event, context) {
       {
         "color": color,
         "fields": [
-          { "title": "Alarm Name", "value": alarmName, "short": true },
+          { "title": "Alarm Name2", "value": alarmName, "short": true },
           { "title": "Alarm Description", "value": alarmDescription, "short": false},
           {
             "title": "Trigger",
@@ -371,7 +377,7 @@ var handleCloudWatch = function(event, context) {
   try {
     slackMessage = extendNotification(slackMessage, message);
   } catch (e) {
-    console.warn('Error of extend slackMessage');
+    console.log('Error of extend slackMessage');
   }
 
   return _.merge(slackMessage, baseSlackMessage);
