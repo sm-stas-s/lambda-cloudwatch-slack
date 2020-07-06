@@ -9,16 +9,18 @@ AWS.config.update({region: 'us-east-1'});
 var ec2 = new AWS.EC2({apiVersion: '2016-11-15'});
 
 var awsDataReservations = [];
-
-function loadAwsData() {
-  ec2.describeInstances({
-    DryRun: false
-  }, function (err, data) {
-    if (err) {
-      console.error(err.stack);
-    } else {
-      awsDataReservations = data.Reservations;
-    }
+async function loadAwsData() {
+  return new Promise((resolve, reject) => {
+    ec2.describeInstances({
+      DryRun: false
+    }, function (err, data) {
+      if (err) {
+        reject(err.stack);
+      } else {
+        awsDataReservations = data.Reservations;
+        resolve(data.Reservations);
+      }
+    })
   })
 }
 
@@ -26,7 +28,8 @@ function loadAwsData() {
  * @param {Object} slackMessage
  * @param {Object} message
  */
-function extendNotification(slackMessage, message) {
+async function extendNotification(slackMessage, message) {
+  await loadAwsData();
   const MessageDimension = _.get(message, 'Trigger.Dimensions');
 
   if (Array.isArray(MessageDimension)) {
@@ -46,21 +49,9 @@ function extendNotification(slackMessage, message) {
           short: false
         });
       });
-    } else {
-      slackMessage.attachments[0].fields.push({
-        title: 'Instance',
-        value: `Unclassified Instance. AwsDataReservations: ${awsDataReservations.length}`,
-        short: false
-      });
     }
   }
   return slackMessage;
-}
-
-try {
-  loadAwsData();
-} catch (e) {
-  console.log('Error loading of AWS data', e);
 }
 
 /**
@@ -324,7 +315,7 @@ var handleElasticache = function(event, context) {
   return _.merge(slackMessage, baseSlackMessage);
 };
 
-var handleCloudWatch = function(event, context) {
+var handleCloudWatch = async function(event, context) {
   var timestamp = (new Date(event.Records[0].Sns.Timestamp)).getTime()/1000;
   var message = JSON.parse(event.Records[0].Sns.Message);
   var region = event.Records[0].EventSubscriptionArn.split(":")[3];
@@ -376,7 +367,7 @@ var handleCloudWatch = function(event, context) {
   };
 
   try {
-    slackMessage = extendNotification(slackMessage, message);
+    slackMessage = await extendNotification(slackMessage, message);
   } catch (e) {
     console.log('Error of extend slackMessage', e);
   }
@@ -457,7 +448,7 @@ var handleCatchAll = function(event, context) {
   return _.merge(slackMessage, baseSlackMessage);
 }
 
-var processEvent = function(event, context) {
+var processEvent = async function(event, context) {
   console.log("sns received:" + JSON.stringify(event, null, 2));
   var slackMessage = null;
   var eventSubscriptionArn = event.Records[0].EventSubscriptionArn;
@@ -481,7 +472,7 @@ var processEvent = function(event, context) {
   }
   else if(eventSnsMessage && 'AlarmName' in eventSnsMessage && 'AlarmDescription' in eventSnsMessage){
     console.log("processing cloudwatch notification");
-    slackMessage = handleCloudWatch(event,context);
+    slackMessage = await handleCloudWatch(event,context);
   }
   else if(eventSubscriptionArn.indexOf(config.services.codedeploy.match_text) > -1 || eventSnsSubject.indexOf(config.services.codedeploy.match_text) > -1 || eventSnsMessageRaw.indexOf(config.services.codedeploy.match_text) > -1){
     console.log("processing codedeploy notification");
@@ -498,6 +489,8 @@ var processEvent = function(event, context) {
   else{
     slackMessage = handleCatchAll(event, context);
   }
+
+  console.log('SlackMessage', JSON.stringify(slackMessage, true, 2));
 
   postMessage(slackMessage, function(response) {
     if (response.statusCode < 400) {
