@@ -349,7 +349,16 @@ var handleCloudWatch = function(event, context) {
       {
         "color": color,
         "fields": [
-          { "title": "Alarm Name2", "value": alarmName, "short": true },
+          { "title": "Alarm Name", "value": alarmName, "short": true },
+
+
+          {
+            title: 'Instance',
+            value: `InstanceId: A, PublicIpAddress: BBB, InstanceName: C`,
+            short: false
+          },
+
+
           { "title": "Alarm Description", "value": alarmDescription, "short": false},
           {
             "title": "Trigger",
