@@ -27,19 +27,11 @@ function loadAwsData() {
  * @param {Object} message
  */
 function extendNotification(slackMessage, message) {
-  const MessageDimension = message.Dimensions;
-
-  slackMessage.attachments.fields.push({
-    title: 'Instance',
-    value: JSON.stringify(MessageDimension),
-    short: false
-  });
-
-  return slackMessage;
+  const MessageDimension = _.get(message, 'Trigger.Dimensions');
 
   if (Array.isArray(MessageDimension)) {
     const instanceIds = MessageDimension.reduce((acc, messageDimension) => {
-      if (messageDimension.value) {
+      if (messageDimension.name === 'InstanceId') {
         acc.push(messageDimension.value);
       }
       return acc;
@@ -48,14 +40,14 @@ function extendNotification(slackMessage, message) {
     if (instanceIds.length > 0) {
       instanceIds.forEach(instanceId => {
         const instanceData = getInstanceById(instanceId);
-        slackMessage.attachments.fields.push({
+        slackMessage.attachments[0].fields.push({
           title: 'Instance',
           value: `InstanceId: ${instanceData.InstanceId}, PublicIpAddress: ${instanceData.PublicIpAddress}, InstanceName: ${instanceData.InstanceName}`,
           short: false
         });
       });
     } else {
-      slackMessage.attachments.fields.push({
+      slackMessage.attachments[0].fields.push({
         title: 'Instance',
         value: `Unclassified Instance. AwsDataReservations: ${awsDataReservations.length}`,
         short: false
@@ -68,7 +60,7 @@ function extendNotification(slackMessage, message) {
 try {
   loadAwsData();
 } catch (e) {
-  console.log('Error loading of AWS data');
+  console.log('Error loading of AWS data', e);
 }
 
 /**
@@ -386,7 +378,7 @@ var handleCloudWatch = function(event, context) {
   try {
     slackMessage = extendNotification(slackMessage, message);
   } catch (e) {
-    console.log('Error of extend slackMessage');
+    console.log('Error of extend slackMessage', e);
   }
 
   return _.merge(slackMessage, baseSlackMessage);
