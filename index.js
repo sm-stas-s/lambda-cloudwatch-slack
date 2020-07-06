@@ -5,6 +5,96 @@ var config = require('./config');
 var _ = require('lodash');
 var hookUrl;
 
+AWS.config.update({region: 'us-east-1'});
+var ec2 = new AWS.EC2({apiVersion: '2016-11-15'});
+
+var awsDataReservations = [];
+
+function loadAwsData() {
+  ec2.describeInstances({
+    DryRun: false
+  }, function (err, data) {
+    if (err) {
+      console.error(err.stack);
+    } else {
+      awsDataReservations = data.Reservations;
+    }
+  })
+}
+
+/**
+ * @param {Object} slackMessage
+ * @param {Object} message
+ */
+function extendNotification(slackMessage, message) {
+  const MessageDimension = message.Dimensions;
+  if (Array.isArray(MessageDimension)) {
+    const instanceIds = MessageDimension.reduce((acc, messageDimension) => {
+      if (messageDimension.InstanceId) {
+        acc.push(messageDimension.InstanceId);
+      }
+      return acc;
+    }, []);
+
+    if (instanceIds.length > 0) {
+      instanceIds.forEach(instanceId => {
+        const instanceData = getInstanceById(instanceId);
+        slackMessage.attachments.fields.push({
+          title: 'Instance',
+          value: `InstanceId: ${instanceData.InstanceId}, PublicIpAddress: ${instanceData.PublicIpAddress}, InstanceName: ${instanceData.InstanceName}`,
+          short: false
+        });
+      });
+    }
+  }
+  return slackMessage;
+}
+
+try {
+  loadAwsData();
+} catch (e) {
+  console.warn('Error loading of AWS data');
+}
+
+/**
+ * @async
+ * @param {String} instanceId - i-007fb122f47e7a8f1 as example
+ * @return {{
+ *     InstanceId:String,
+ *     PublicIpAddress:String,
+ *     InstanceName:String,
+ * }}
+ */
+function getInstanceById(instanceId) {
+    var result = {
+        InstanceId: instanceId,
+        PublicIpAddress: 'Unclassified PublicIpAddress',
+        InstanceName: 'Unclassified InstanceName',
+    }
+
+    const instanceData = awsDataReservations.reduce((acc, Reservation) => {
+        const Instances = Reservation.Instances;
+        const targetInstance = Instances.find(Instance => Instance.InstanceId === instanceId);
+        if (targetInstance) {
+            const instanceNameTag = targetInstance.Tags.find(Tag => Tag.Key === 'Name');
+            const result = {
+                InstanceId: targetInstance.InstanceId,
+                PublicIpAddress: targetInstance.PublicIpAddress,
+                InstanceName: instanceNameTag.Value || 'Unclassified'
+            }
+
+            acc.push(result);
+        }
+        return acc;
+    }, []);
+
+    if (instanceData.length === 1) {
+        result = instanceData[0];
+    }
+
+    return result;
+}
+
 var baseSlackMessage = {}
 
 var postMessage = function(message, callback) {
@@ -278,22 +368,10 @@ var handleCloudWatch = function(event, context) {
     ]
   };
 
-  const MessageDimension = message.Dimensions;
-  if (Array.isArray(MessageDimension)) {
-    const instanceIds = MessageDimension.reduce((acc, messageDimension) => {
-      if (messageDimension.InstanceId) {
-        acc.push(messageDimension.InstanceId);
-      }
-      return acc;
-    }, []);
-
-    if (instanceIds.length > 0) {
-      slackMessage.attachments.fields.push({
-        title: 'Instance',
-        value: instanceIds.join(','),
-        short: false
-      });
-    }
+  try {
+    slackMessage = extendNotification(slackMessage, message);
+  } catch (e) {
+    console.warn('Error of extend slackMessage');
   }
 
   return _.merge(slackMessage, baseSlackMessage);
@@ -383,7 +461,7 @@ var processEvent = function(event, context) {
   try {
     eventSnsMessage = JSON.parse(eventSnsMessageRaw);
   }
-  catch (e) {    
+  catch (e) {
   }
 
   if(eventSubscriptionArn.indexOf(config.services.codepipeline.match_text) > -1 || eventSnsSubject.indexOf(config.services.codepipeline.match_text) > -1 || eventSnsMessageRaw.indexOf(config.services.codepipeline.match_text) > -1){
