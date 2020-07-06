@@ -277,6 +277,25 @@ var handleCloudWatch = function(event, context) {
       }
     ]
   };
+
+  const MessageDimension = message.Dimensions;
+  if (Array.isArray(MessageDimension)) {
+    const instanceIds = MessageDimension.reduce((acc, messageDimension) => {
+      if (messageDimension.InstanceId) {
+        acc.push(messageDimension.InstanceId);
+      }
+      return acc;
+    }, []);
+
+    if (instanceIds.length > 0) {
+      slackMessage.attachments.fields.push({
+        title: 'Instance',
+        value: instanceIds.join(','),
+        short: false
+      });
+    }
+  }
+
   return _.merge(slackMessage, baseSlackMessage);
 };
 
