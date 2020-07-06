@@ -30,8 +30,8 @@ function extendNotification(slackMessage, message) {
   const MessageDimension = message.Dimensions;
   if (Array.isArray(MessageDimension)) {
     const instanceIds = MessageDimension.reduce((acc, messageDimension) => {
-      if (messageDimension.InstanceId) {
-        acc.push(messageDimension.InstanceId);
+      if (messageDimension.value) {
+        acc.push(messageDimension.value);
       }
       return acc;
     }, []);
