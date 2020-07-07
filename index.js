@@ -43,11 +43,14 @@ async function extendNotification(slackMessage, message) {
     if (instanceIds.length > 0) {
       instanceIds.forEach(instanceId => {
         const instanceData = getInstanceById(instanceId);
-        slackMessage.attachments[0].fields.push({
+        const section = {
           title: 'Instance',
-          value: `InstanceId: ${instanceData.InstanceId}, PublicIpAddress: ${instanceData.PublicIpAddress}, InstanceName: ${instanceData.InstanceName}`,
+          value: instanceData.InstanceName + "\n"
+              + instanceData.PublicIpAddress + "\n"
+              + `<https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#Instances:search=${instanceData.InstanceId};sort=tag:Name|${instanceData.InstanceId}>`,
           short: false
-        });
+        };
+        slackMessage.attachments[0].fields.splice(1, 0, section);
       });
     }
   }
@@ -319,7 +322,6 @@ var handleCloudWatch = async function(event, context) {
   var timestamp = (new Date(event.Records[0].Sns.Timestamp)).getTime()/1000;
   var message = JSON.parse(event.Records[0].Sns.Message);
   var region = event.Records[0].EventSubscriptionArn.split(":")[3];
-  var subject = "AWS CloudWatch Notification";
   var alarmName = message.AlarmName;
   var metricName = message.Trigger.MetricName;
   var oldState = message.OldStateValue;
@@ -336,12 +338,13 @@ var handleCloudWatch = async function(event, context) {
   }
 
   var slackMessage = {
-    text: "*" + subject + "*",
+    text: "",
     attachments: [
       {
         "color": color,
         "fields": [
           { "title": "Alarm Name", "value": alarmName, "short": true },
+          // will be inserted Instance data
           { "title": "Alarm Description", "value": alarmDescription, "short": false},
           {
             "title": "Trigger",
